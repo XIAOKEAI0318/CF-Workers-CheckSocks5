@@ -104,7 +104,7 @@ export default {
         else if (env.URL) return await 代理URL(env.URL, url);
         else {
             const 网站图标 = env.ICO ? `<link rel="icon" href="${env.ICO}" type="image/x-icon">` : '';
-            const 网络备案 = env.BEIAN || `&copy; 2025 Check Socks5/HTTP - 基于 Cloudflare Workers 构建的高性能代理验证服务 | by cmliu`;
+            const 网络备案 = env.BEIAN || `&copy; 2025 Check Socks5/HTTP - 基于 Cloudflare Workers 构建的高性能代理验证服务 | IP数据来源: ipapi.is | by: cmliu`;
             let img = 'background: #ffffff;';
             if (env.IMG) {
                 const imgs = await 整理(env.IMG);
@@ -1455,6 +1455,72 @@ async function HTML(网站图标, 网络备案, img) {
             }
         }
         
+        function formatIpType(type) {
+            if (!type) return '<span class="ip-type-unknown">未知</span>';
+            
+            const typeMap = {
+                'isp': { text: '住宅', style: 'color: #36893dcc; font-weight: bold;' },
+                'hosting': { text: '机房', style: 'font-weight: bold;' },
+                'business': { text: '商用', style: 'color: #eab308; font-weight: bold;' }
+            };
+            
+            const typeInfo = typeMap[type.toLowerCase()];
+            if (!typeInfo) return '<span style="font-weight: bold;">' + type + '</span>';
+            return \`<span style="\${typeInfo.style}">\${typeInfo.text}</span>\`;
+        }
+        
+        function calculateAbuseScore(companyScore, asnScore, securityFlags = {}) {
+            // 如果两个分数都无效，返回null
+            if (!companyScore || companyScore === '未知') companyScore = 0;
+            if (!asnScore || asnScore === '未知') asnScore = 0;
+            
+            const company = parseFloat(companyScore) || 0;
+            const asn = parseFloat(asnScore) || 0;
+            
+            // 计算基础评分：(company + asn) / 2 * 5
+            let baseScore = ((company + asn) / 2) * 5;
+            
+            // 计算安全风险附加分：每个安全风险项增加 15%
+            let riskAddition = 0;
+            const riskFlags = [
+                securityFlags.is_crawler,   // 爬虫
+                securityFlags.is_proxy,     // 代理服务器
+                securityFlags.is_vpn,       // VPN
+                securityFlags.is_tor,       // Tor 网络
+                securityFlags.is_abuser,    // 滥用 IP
+                securityFlags.is_bogon      // 虚假 IP
+            ];
+            
+            // 统计为 true 的风险项数量
+            const riskCount = riskFlags.filter(flag => flag === true).length;
+            riskAddition = riskCount * 0.15; // 每个风险项增加 15%
+            
+            // 最终评分 = 基础评分 + 风险附加分
+            const finalScore = baseScore + riskAddition;
+            
+            // 如果基础评分和风险附加分都是0，返回null
+            if (baseScore === 0 && riskAddition === 0) return null;
+            
+            return finalScore;
+        }
+        
+        function getAbuseScoreBadgeClass(percentage) {
+            if (percentage === null || percentage === undefined) return 'badge-info';
+            
+            if (percentage >= 100) return 'badge-critical';      // 危险红色 >= 100%
+            if (percentage >= 20) return 'badge-high';           // 橘黄色 15-99.99%
+            if (percentage >= 5) return 'badge-elevated';     // 黄色 5-14.99%
+            if (percentage >= 0.25) return 'badge-low';          // 淡绿色 0.25-4.99%
+            return 'badge-verylow';                              // 绿色 < 0.25%
+        }
+        
+        function formatAbuseScorePercentage(score) {
+            if (score === null || score === undefined) return '未知';
+            
+            const percentage = score * 100;
+            return percentage.toFixed(2) + '%';
+        }
+        
         function getAbusescoreColor(score) {
             // 提取数字部分并转换为百分比
             const match = score.match(/([0-9.]+)/);
@@ -1477,9 +1543,38 @@ async function HTML(网站图标, 网络备案, img) {
                 return;
             }
             
-            const abusescoreColor = getAbusescoreColor(data.asn?.abuser_score || '0');
-            const abusescoreMatch = (data.asn?.abuser_score || '0').match(/([0-9.]+)/);
-            const abusescorePercentage = abusescoreMatch ? (parseFloat(abusescoreMatch[1]) * 1000).toFixed(2) + '%' : '0%';
+            // 计算综合滥用评分
+            const companyScore = data.company?.abuser_score;
+            const asnScore = data.asn?.abuser_score;
+            const securityFlags = {
+                is_crawler: data.is_crawler,
+                is_proxy: data.is_proxy,
+                is_vpn: data.is_vpn,
+                is_tor: data.is_tor,
+                is_abuser: data.is_abuser,
+                is_bogon: data.is_bogon
+            };
+            
+            const combinedScore = calculateAbuseScore(companyScore, asnScore, securityFlags);
+            let abuseScoreHTML = '';
+            
+            if (combinedScore !== null) {
+                const scorePercentage = combinedScore * 100;
+                const badgeClass = getAbuseScoreBadgeClass(scorePercentage);
+                const formattedScore = formatAbuseScorePercentage(combinedScore);
+                
+                // 根据百分比确定风险等级文本
+                let riskLevel = '';
+                if (scorePercentage >= 100) riskLevel = '极度危险';
+                else if (scorePercentage >= 20) riskLevel = '高风险';
+                else if (scorePercentage >= 5) riskLevel = '轻微风险';
+                else if (scorePercentage >= 0.25) riskLevel = '纯净';
+                else riskLevel = '极度纯净';
+                
+                abuseScoreHTML = \`<span style="background-color: rgb(\${Math.min(255, Math.round(scorePercentage * 2.55))}, \${Math.min(255, Math.round((100 - scorePercentage) * 2.55))}, 0); color: white; padding: 4px 8px; border-radius: 5px; font-size: 0.9em; font-weight: bold;">\${formattedScore} \${riskLevel}</span>\`;
+            } else {
+                abuseScoreHTML = '未知';
+            }
             
             const ipDisplay = showIPSelector && currentDomainInfo && currentDomainInfo.all_ips.length > 1 
                 ? \`<div class="ip-selector">
@@ -1503,18 +1598,22 @@ async function HTML(网站图标, 网络备案, img) {
                     </span>
                 </div>
                 <div class="info-item">
+                    <span class="info-label">运营商 / ASN 类型:</span>
+                    <span class="info-value">
+                        \${formatIpType(data.company?.type)} / \${formatIpType(data.asn?.type)}
+                    </span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">综合滥用评分:</span>
+                    <span class="info-value">
+                        \${abuseScoreHTML}
+                    </span>
+                </div>
+                <div class="info-item">
                     <span class="info-label">网络爬虫:</span>
                     <span class="info-value">
                         <span class="\${data.is_crawler ? 'status-yes' : 'status-no'}">
                             \${data.is_crawler ? '是' : '否'}
-                        </span>
-                    </span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">数据中心:</span>
-                    <span class="info-value">
-                        <span class="\${data.is_datacenter ? 'status-yes' : 'status-no'}">
-                            \${data.is_datacenter ? '是' : '否'}
                         </span>
                     </span>
                 </div>
@@ -1543,7 +1642,7 @@ async function HTML(网站图标, 网络备案, img) {
                     </span>
                 </div>
                 <div class="info-item">
-                    <span class="info-label">滥用行为:</span>
+                    <span class="info-label">滥用 IP:</span>
                     <span class="info-value">
                         <span class="\${data.is_abuser ? 'status-yes' : 'status-no'}">
                             \${data.is_abuser ? '是' : '否'}
@@ -1551,10 +1650,10 @@ async function HTML(网站图标, 网络备案, img) {
                     </span>
                 </div>
                 <div class="info-item">
-                    <span class="info-label">滥用风险评分:</span>
+                    <span class="info-label">虚假 IP:</span>
                     <span class="info-value">
-                        <span style="background-color: \${abusescoreColor}; color: white; padding: 4px 8px; border-radius: 5px; font-size: 0.9em;">
-                            \${abusescorePercentage}
+                        <span class="\${data.is_bogon ? 'status-yes' : 'status-no'}">
+                            \${data.is_bogon ? '是' : '否'}
                         </span>
                     </span>
                 </div>
