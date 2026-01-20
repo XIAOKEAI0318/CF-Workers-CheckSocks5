@@ -1921,5 +1921,4 @@ async function HTML(网站图标, 网络备案, img) {
     return new Response(html, {
         headers: { "content-type": "text/html;charset=UTF-8" }
     });
-
 }
