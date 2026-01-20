@@ -104,7 +104,7 @@ export default {
         else if (env.URL) return await 代理URL(env.URL, url);
         else {
             const 网站图标 = env.ICO ? `<link rel="icon" href="${env.ICO}" type="image/x-icon">` : '';
-            const 网络备案 = env.BEIAN || `&copy; 2025 Check Socks5/HTTP - 基于 Cloudflare Workers 构建的高性能代理验证服务 | IP数据来源: ipapi.is | by: cmliu`;
+            const 网络备案 = env.BEIAN || `&copy; 2025 Check Socks5/HTTP - 基于 Cloudflare Workers 构建的高性能代理验证服务 | IP数据来源: ipapi.is ;
             let img = 'background: #ffffff;';
             if (env.IMG) {
                 const imgs = await 整理(env.IMG);
@@ -1234,7 +1234,7 @@ async function HTML(网站图标, 网络备案, img) {
     </style>
 </head>
 <body>
-  <a href="https://github.com/cmliu/CF-Workers-CheckSocks5" target="_blank" class="github-corner" aria-label="View source on Github">
+  <a href="https://github.com/XIAOKEAI0318/CF-Workers-CheckSocks5" target="_blank" class="github-corner" aria-label="View source on Github">
     <svg viewBox="0 0 250 250" aria-hidden="true">
       <path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path>
       <path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path>
@@ -1921,4 +1921,5 @@ async function HTML(网站图标, 网络备案, img) {
     return new Response(html, {
         headers: { "content-type": "text/html;charset=UTF-8" }
     });
+
 }
